@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Aim Text — 验证测试</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" onerror="document.getElementById('cdn-status').textContent='❌ CDN加载失败! 请检查网络'"></script>
+<style>
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;max-width:1000px;margin:0 auto}
+h1{color:#1f2328;border-bottom:2px solid #d0d7de;padding-bottom:8px}
+h2{color:#555;margin-top:24px}
+.pass{color:#1a7f37;font-weight:bold}
+.fail{color:#cf222e;font-weight:bold}
+.warn{color:#9a6700}
+pre{background:#fff;border:1px solid #d0d7de;padding:12px;border-radius:6px;font-size:13px;line-height:1.5;max-height:400px;overflow:auto}
+.row{display:flex;gap:12px;margin:4px 0;padding:6px 10px;background:#fff;border:1px solid #eee;border-radius:4px}
+.rn{flex:1}.rv{min-width:50px;text-align:right}
+#scene-box{width:100%;height:400px;background:#0d1117;border:1px solid #333;border-radius:8px;position:relative;overflow:hidden}
+#scene-box canvas{display:block;width:100%!important;height:100%!important}
+.fps{position:absolute;top:8px;right:8px;color:#8b949e;font-size:12px;font-family:monospace;z-index:5}
+#cdn-status{padding:6px 12px;border-radius:4px;font-size:14px}
+.ok{background:#dafbe1;color:#1a7f37}
+.err{background:#ffebe9;color:#cf222e}
+.controls{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+.controls button{padding:8px 16px;border:1px solid #d0d7de;border-radius:6px;background:#fff;cursor:pointer;font-size:14px}
+.controls button:hover{background:#f0f2f5}
+.summary{background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:16px;margin:12px 0}
+</style>
+</head>
+<body>
+
+<h1>🧪 Aim Text — 综合验证测试</h1>
+<p id="cdn-status" class="ok">⏳ 正在加载 Three.js...</p>
+
+<div class="summary" id="unit-results"><strong>⏳ 运行单元测试...</strong></div>
+
+<h2>🎯 3D 渲染测试</h2>
+<p>下方黑色背景中应看到: <strong>红色球体(靶子)</strong> + <strong>蓝色十字(准星)</strong> + <strong>灰色网格线</strong></p>
+<div id="scene-box">
+  <div class="fps" id="fps-display">-- FPS</div>
+</div>
+
+<div class="controls">
+  <button id="btn-init">▶ 初始化场景</button>
+  <button id="btn-target">🎯 生成新靶子</button>
+  <button id="btn-reset">⟳ 重置</button>
+</div>
+
+<h2>📋 诊断输出</h2>
+<pre id="output">等待测试...</pre>
+
+<script>
+var output = document.getElementById('output');
+var fpsDisplay = document.getElementById('fps-display');
+var unitResults = document.getElementById('unit-results');
+var cdnStatus = document.getElementById('cdn-status');
+
+function log(msg) { output.textContent += msg + '\n'; }
+function clearLog() { output.textContent = ''; }
+
+// ═══════ 单元测试 ═══════
+var unitTests = [];
+function ut(name, fn) { unitTests.push({name: name, fn: fn}); }
+
+ut('THREE 库已加载', function() {
+  return typeof THREE !== 'undefined' ? true : 'THREE is undefined';
+});
+
+ut('THREE.Revision', function() {
+  return THREE.REVISION ? true : 'no revision';
+});
+
+ut('WebGL 支持', function() {
+  try {
+    var c = document.createElement('canvas');
+    return (c.getContext('webgl') || c.getContext('experimental-webgl')) ? true : 'WebGL not supported';
+  } catch(e) { return 'WebGL error: ' + e.message; }
+});
+
+ut('Scene 创建', function() {
+  var s = new THREE.Scene(); return s.type === 'Scene' ? true : 'Scene type mismatch';
+});
+
+ut('PerspectiveCamera 创建', function() {
+  var c = new THREE.PerspectiveCamera(90, 1, 0.1, 50);
+  // 检查默认投影矩阵是否正常
+  c.updateProjectionMatrix();
+  var p = c.projectionMatrix;
+  return (p && p.elements && p.elements.length === 16) ? true : 'Projection matrix invalid';
+});
+
+ut('WebGLRenderer 创建', function() {
+  var r = new THREE.WebGLRenderer({antialias:true});
+  var ok = r.domElement && r.domElement.tagName === 'CANVAS';
+  r.dispose();
+  return ok ? true : 'Renderer canvas missing';
+});
+
+ut('SphereGeometry + MeshStandardMaterial', function() {
+  var g = new THREE.SphereGeometry(0.3, 24, 24);
+  var m = new THREE.MeshStandardMaterial({color:0xff4444, emissive:0xff2222});
+  var mesh = new THREE.Mesh(g, m);
+  return mesh.type === 'Mesh' ? true : 'Mesh creation failed';
+});
+
+ut('Canvas 2D 绘图', function() {
+  var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  var ctx = c.getContext('2d');
+  if (!ctx) return 'Canvas 2D not available';
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(32, 16); ctx.lineTo(32, 28); ctx.stroke();
+  ctx.fillStyle = '#58a6ff'; ctx.beginPath(); ctx.arc(32, 32, 2, 0, Math.PI*2); ctx.fill();
+  var imgData = ctx.getImageData(28, 16, 8, 2);
+  var hasPixels = false;
+  for (var i = 0; i < imgData.data.length; i++) { if (imgData.data[i] > 0) { hasPixels = true; break; } }
+  return hasPixels ? true : 'Canvas 2D drawing produced no visible pixels';
+});
+
+ut('CanvasTexture 创建', function() {
+  var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  var tex = new THREE.CanvasTexture(c);
+  return (tex && tex.image === c) ? true : 'CanvasTexture invalid';
+});
+
+ut('Sprite 创建', function() {
+  var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  var tex = new THREE.CanvasTexture(c);
+  var mat = new THREE.SpriteMaterial({map: tex, transparent: true, depthWrite: false, depthTest: false});
+  var sp = new THREE.Sprite(mat);
+  sp.scale.set(0.15, 0.15, 1);
+  return sp.type === 'Sprite' ? true : 'Sprite invalid';
+});
+
+ut('RingGeometry + MeshBasicMaterial', function() {
+  var g = new THREE.RingGeometry(0.4, 0.45, 32);
+  var m = new THREE.MeshBasicMaterial({color:0x58a6ff, side:THREE.DoubleSide, transparent:true, opacity:0.4});
+  var mesh = new THREE.Mesh(g, m);
+  return mesh.type === 'Mesh' ? true : 'Ring Mesh invalid';
+});
+
+// 运行单元测试
+function runUnitTests() {
+  clearLog();
+  log('=== 单元测试 ===\n');
+  var passed = 0, failed = 0, warns = 0;
+  var html = '<strong>单元测试结果:</strong><br>';
+
+  unitTests.forEach(function(t) {
+    try {
+      var r = t.fn();
+      if (r === true) {
+        passed++;
+        log('✅ ' + t.name);
+        html += '<span class="pass">✅</span> ' + t.name + '<br>';
+      } else {
+        failed++;
+        log('❌ ' + t.name + ' → ' + r);
+        html += '<span class="fail">❌</span> ' + t.name + ' → ' + r + '<br>';
+      }
+    } catch(e) {
+      failed++;
+      log('❌ ' + t.name + ' → EXCEPTION: ' + e.message);
+      html += '<span class="fail">❌</span> ' + t.name + ' → ' + e.message + '<br>';
+    }
+  });
+
+  html += '<br><strong>通过: ' + passed + ' / ' + unitTests.length + ' | 失败: ' + failed + '</strong>';
+  unitResults.innerHTML = html;
+
+  if (failed > 0) {
+    cdnStatus.className = 'err';
+    cdnStatus.textContent = '❌ 有 ' + failed + ' 个测试失败!';
+  } else {
+    cdnStatus.className = 'ok';
+    cdnStatus.textContent = '✅ 全部 ' + passed + ' 个测试通过';
+  }
+}
+
+// ═══════ 3D 场景渲染 ═══════
+var scene, camera, renderer, crosshair, target, ring;
+var frameCount = 0, lastFpsTime = 0;
+var running = false;
+
+function initScene() {
+  clearLog();
+  log('=== 初始化 3D 场景 ===\n');
+
+  var box = document.getElementById('scene-box');
+  var w = box.clientWidth;
+  var h = box.clientHeight;
+  log('容器尺寸: ' + w + ' x ' + h);
+
+  if (w === 0 || h === 0) {
+    log('❌ 容器尺寸为0!');
+    return;
+  }
+
+  try {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1117);
+    log('✅ Scene 创建 (background: ' + scene.background.getHexString() + ')');
+
+    camera = new THREE.PerspectiveCamera(90, w / h, 0.1, 50);
+    camera.position.set(0, 0.5, 0);
+    camera.rotation.order = 'YXZ';
+    log('✅ Camera 创建 (FOV: 90, pos: 0,0.5,0)');
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    box.innerHTML = '';
+    box.appendChild(renderer.domElement);
+    log('✅ Renderer 创建 (size: ' + w + 'x' + h + ', pixelRatio: ' + renderer.getPixelRatio() + ')');
+
+    // 灯光
+    scene.add(new THREE.AmbientLight(0x8080a0, 0.8));
+    var dl = new THREE.DirectionalLight(0xffffff, 1.0);
+    dl.position.set(5, 10, 5);
+    scene.add(dl);
+    scene.add(new THREE.HemisphereLight(0x8888ff, 0x444422, 0.4));
+    log('✅ 灯光: Ambient(0.8) + Directional(1.0) + Hemisphere(0.4)');
+
+    // 网格
+    var grid = new THREE.GridHelper(20, 20, 0x444466, 0x333355);
+    grid.position.y = -0.5;
+    scene.add(grid);
+    log('✅ 网格 GridHelper(20x20) 位置 y=-0.5');
+
+    // 靶子球体
+    var g = new THREE.SphereGeometry(0.3, 24, 24);
+    var m = new THREE.MeshStandardMaterial({
+      color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 0.3,
+      metalness: 0.3, roughness: 0.7
+    });
+    target = new THREE.Mesh(g, m);
+    target.position.set(0, 0.5, -4);
+    scene.add(target);
+    log('✅ 靶子球体 位置 (0, 0.5, -4) 颜色 #ff4444 emissive #ff2222');
+
+    // 光环
+    var rg = new THREE.RingGeometry(0.4, 0.45, 32);
+    var rm = new THREE.MeshBasicMaterial({
+      color: 0x58a6ff, side: THREE.DoubleSide, transparent: true, opacity: 0.4
+    });
+    ring = new THREE.Mesh(rg, rm);
+    ring.position.set(0, 0.5, -4);
+    ring.lookAt(0, 0, 0);
+    scene.add(ring);
+    log('✅ 靶子光环 RingGeometry 位置 (0, 0.5, -4)');
+
+    // 准星 Sprite
+    var c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    var ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2.5;
+    var cx = 32, cy = 32, len = 14, gap = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - gap); ctx.lineTo(cx, cy - gap - len);
+    ctx.moveTo(cx, cy + gap); ctx.lineTo(cx, cy + gap + len);
+    ctx.moveTo(cx - gap, cy); ctx.lineTo(cx - gap - len, cy);
+    ctx.moveTo(cx + gap, cy); ctx.lineTo(cx + gap + len, cy);
+    ctx.stroke();
+    ctx.fillStyle = '#58a6ff';
+    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    log('✅ Canvas 准星绘制完成 (64x64, 十字线长28px, 中心点5px)');
+
+    var tex = new THREE.CanvasTexture(c);
+    var sm = new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false, depthTest: false
+    });
+    crosshair = new THREE.Sprite(sm);
+    crosshair.scale.set(0.15, 0.15, 1);
+    crosshair.position.set(0, 0, -0.3);
+    camera.add(crosshair);
+    log('✅ 准星 Sprite 添加到 camera, scale=0.15, position=(0,0,-0.3)');
+    log('✅ Sprite material: depthWrite=false, depthTest=false');
+
+    // 统计场景中的对象
+    log('\n--- 场景对象统计 ---');
+    log('  scene.children: ' + scene.children.length);
+    log('  camera.children: ' + camera.children.length);
+    log('  预期: 网格+灯光+球体+光环 = 4+?');
+
+    running = true;
+    log('\n✅ 场景初始化完成，开始渲染循环');
+    animate();
+  } catch(e) {
+    log('❌ 初始化异常: ' + e.message + '\n' + e.stack);
+  }
+}
+
+function animate() {
+  if (!running) return;
+  requestAnimationFrame(animate);
+
+  // 靶子缓慢旋转（验证是动态的）
+  if (target) target.rotation.y += 0.01;
+
+  // FPS 计数
+  frameCount++;
+  var now = performance.now();
+  if (now - lastFpsTime > 1000) {
+    fpsDisplay.textContent = frameCount + ' FPS';
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+
+  renderer.render(scene, camera);
+}
+
+function spawnNewTarget() {
+  if (!scene || !running) {
+    log('❌ 场景未初始化');
+    return;
+  }
+  // 移除旧靶子
+  if (target) { scene.remove(target); }
+  if (ring) { scene.remove(ring); }
+
+  var x = (Math.random() - 0.5) * 6;
+  var y = (Math.random() - 0.5) * 3 + 0.5;
+  var z = -(3 + Math.random() * 4);
+  log('🎯 新靶子位置: (' + x.toFixed(2) + ', ' + y.toFixed(2) + ', ' + z.toFixed(2) + ')');
+
+  var g = new THREE.SphereGeometry(0.3, 24, 24);
+  var m = new THREE.MeshStandardMaterial({
+    color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 0.3,
+    metalness: 0.3, roughness: 0.7
+  });
+  target = new THREE.Mesh(g, m);
+  target.position.set(x, y, z);
+  scene.add(target);
+
+  var rg = new THREE.RingGeometry(0.4, 0.45, 32);
+  var rm = new THREE.MeshBasicMaterial({
+    color: 0x58a6ff, side: THREE.DoubleSide, transparent: true, opacity: 0.4
+  });
+  ring = new THREE.Mesh(rg, rm);
+  ring.position.set(x, y, z);
+  ring.lookAt(0, 0, 0);
+  scene.add(ring);
+
+  log('✅ 新靶子已生成');
+}
+
+function resetScene() {
+  running = false;
+  if (renderer) { renderer.dispose(); renderer = null; }
+  scene = null; camera = null; target = null; ring = null; crosshair = null;
+  var box = document.getElementById('scene-box');
+  box.innerHTML = '<div class="fps" id="fps-display">-- FPS</div>';
+  log('\n⟳ 场景已重置');
+}
+
+// ═══════ 按钮事件 ═══════
+document.addEventListener('DOMContentLoaded', function() {
+  // 延迟运行单元测试，确保 THREE 已加载
+  setTimeout(function() {
+    runUnitTests();
+    cdnStatus.textContent = '✅ Three.js loaded (r' + (THREE.REVISION || '?') + ')';
+    cdnStatus.className = 'ok';
+  }, 500);
+
+  document.getElementById('btn-init').addEventListener('click', initScene);
+  document.getElementById('btn-target').addEventListener('click', spawnNewTarget);
+  document.getElementById('btn-reset').addEventListener('click', resetScene);
+});
+</script>
+</body>
+</html>

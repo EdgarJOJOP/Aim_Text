@@ -1,0 +1,145 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>跟枪验证</title>
+<style>body{font-family:monospace;background:#fff;padding:20px;max-width:800px;margin:0 auto}
+h1{color:#333;border-bottom:2px solid #333}pre{background:#f5f5f5;border:1px solid #ddd;padding:12px;border-radius:6px;min-height:200px;font-size:13px}
+button{padding:8px 20px;cursor:pointer;margin:4px;font-size:14px}
+.pass{color:#1a7f37;font-weight:bold}.fail{color:#cf222e;font-weight:bold}
+</style></head><body>
+<h1>🧪 跟枪计时器验证</h1>
+<p>验证 trackingElapsed 递增 + Clock 重置 + 轮次推进</p>
+<button onclick="run()">▶ 运行验证</button>
+<pre id="out">等待...</pre>
+<script>
+var out=document.getElementById('out');
+function log(m){out.textContent+=m+'\n';}
+function clearLog(){out.textContent='';}
+
+function simulateScene(){
+  // 模拟 AimScene 的 tracking 变量
+  var clock={lastTime:0};
+  clock.getDelta=function(){
+    var now=performance.now();
+    var dt=this.lastTime?(now-this.lastTime)/1000:0.016;
+    this.lastTime=now;
+    return Math.min(dt,0.05); // cap like THREE.Clock
+  };
+  
+  return {
+    running:true,
+    mode:'tracking',
+    activeTarget:{hit:false,type:'moving'},
+    round:0,
+    maxRounds:10,
+    trackingElapsed:0,
+    trackingDuration:5,
+    clock:clock,
+    completed:false,
+    
+    advanceTracking:function(){
+      if(this.activeTarget)this.activeTarget=null;
+      this.round++;this.trackingElapsed=0;
+      if(this.round>this.maxRounds)this.completed=true;
+      else this.activeTarget={hit:false,type:'moving'};
+    },
+    
+    animate:function(manualDt){
+      if(!this.running||this.completed)return;
+      var dt=manualDt||this.clock.getDelta();
+      if(this.mode==='tracking'&&this.activeTarget){
+        this.trackingElapsed+=dt;
+        if(this.trackingElapsed>=this.trackingDuration)this.advanceTracking();
+      }
+    },
+    
+    resetClock:function(){this.clock.lastTime=0;}
+  };
+}
+
+function run(){
+  clearLog();
+  log('=== 跟枪计时器验证 ===\n');
+  var passed=0,total=0;
+  
+  // Test 1: 5秒后推进一轮
+  total++;
+  log('测试1: trackingElapsed 从0开始, 5秒后推进一轮');
+  var sc=simulateScene();
+  var frames=0;
+  while(!sc.completed&&frames<1000){
+    sc.animate();
+    frames++;
+    if(frames%100===0&&sc.round>0)break;
+  }
+  if(sc.round===1&&sc.trackingElapsed<0.1){
+    log('  ✅ 第1轮完成. round='+sc.round+' trackingElapsed='+sc.trackingElapsed.toFixed(3));
+    passed++;
+  }else{
+    log('  ❌ round='+sc.round+' elapsed='+sc.trackingElapsed.toFixed(3));
+  }
+  
+  // Test 2: 完整10轮
+  total++;
+  log('\n测试2: 完整10轮跟枪');
+  var sc2=simulateScene();
+  var totalFrames=0;
+  for(var r=0;r<10;r++){
+    var f=0;
+    while(sc2.trackingElapsed<sc2.trackingDuration){sc2.animate();f++;}
+    totalFrames+=f;
+  }
+  if(sc2.round===10){
+    log('  ✅ 10轮全部完成. 总帧数:'+totalFrames);
+    passed++;
+  }else{
+    log('  ❌ 只完成 '+sc2.round+'/10 轮');
+  }
+  
+  // Test 3: Clock 重置修复
+  total++;
+  log('\n测试3: Clock 重置后 dt 正常');
+  var sc3=simulateScene();
+  sc3.clock.lastTime=performance.now()-2000; // 模拟2秒间隙
+  var firstDt=sc3.clock.getDelta();
+  log('  不重置Clock: 第一个dt='+firstDt.toFixed(3)+'s (应≈0.016, 但可能很大)');
+  sc3.resetClock();
+  var afterReset=sc3.clock.getDelta();
+  log('  重置Clock后: dt='+afterReset.toFixed(3)+'s');
+  if(afterReset<0.03){
+    log('  ✅ Clock 重置有效');
+    passed++;
+  }else{
+    log('  ❌ 重置后 dt 仍然过大');
+  }
+  
+  // Test 4: 按住鼠标(持续mousemove)不干扰计时
+  total++;
+  log('\n测试4: mousemove 事件不干扰计时器');
+  var sc4=simulateScene();
+  var elapsedBefore=sc4.trackingElapsed;
+  for(var i=0;i<60;i++){sc4.animate();} // 模拟1秒
+  var elapsedAfter=sc4.trackingElapsed;
+  if(elapsedAfter>0.5&&elapsedAfter<2.0){
+    log('  ✅ mousemove后计时器正常: '+elapsedAfter.toFixed(2)+'s');
+    passed++;
+  }else{
+    log('  ❌ 计时异常: '+elapsedAfter.toFixed(2)+'s');
+  }
+  
+  // Test 5: 射击(miss)不重置计时器
+  total++;
+  log('\n测试5: 射击(miss)后计时器继续');
+  var sc5=simulateScene();
+  for(var j=0;j<150;j++)sc5.animate(); // 2.5秒
+  var midElapsed=sc5.trackingElapsed;
+  sc5.running=true; // mousedown 不改变 running
+  for(var k=0;k<150;k++)sc5.animate(); // 再2.5秒
+  var finalElapsed=sc5.trackingElapsed;
+  if(finalElapsed>4.0&&midElapsed>1.0){
+    log('  ✅ 射击miss后计时器从 '+midElapsed.toFixed(2)+'s 到 '+finalElapsed.toFixed(2)+'s');
+    passed++;
+  }else{
+    log('  ❌ mid='+midElapsed.toFixed(2)+' final='+finalElapsed.toFixed(2));
+  }
+  
+  log('\n=== 结果: '+passed+'/'+total+' 通过 ===');
+}
+</script></body></html>

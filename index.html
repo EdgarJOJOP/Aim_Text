@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aim Text — PSA 灵敏度测试系统</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<!-- Three.js UMD (全局 THREE) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══ 页面1: 设置页 ═══ -->
+  <div id="page-setup" class="page active">
+    <div class="setup-container">
+      <div class="logo-area">
+        <h1>🎯 Aim Text</h1>
+        <p class="subtitle">Perfect Sensitivity Approximation — 系统化灵敏度测试</p>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-icon">🖱️</span><span>鼠标 DPI 设置</span></div>
+        <div class="card-body">
+          <label class="field-label" for="dpi-input">你的鼠标当前 DPI 是多少？</label>
+          <div class="input-group">
+            <input type="number" id="dpi-input" class="input" value="400" min="100" max="25600" step="50">
+            <span class="input-suffix">DPI</span>
+          </div>
+          <p class="field-hint">📌 请在鼠标驱动中查看并填写</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-icon">🎮</span><span>手柄设置（可选）</span></div>
+        <div class="card-body">
+          <label class="field-label">你的手柄类型：</label>
+          <div class="radio-group">
+            <label class="radio-item"><input type="radio" name="controller-type" value="none" checked><span class="radio-label">不使用手柄</span></label>
+            <label class="radio-item"><input type="radio" name="controller-type" value="xbox"><span class="radio-label">Xbox 官方手柄</span><span class="radio-desc">参数硬件固定</span></label>
+            <label class="radio-item"><input type="radio" name="controller-type" value="playstation"><span class="radio-label">PlayStation 官方手柄</span><span class="radio-desc">参数硬件固定</span></label>
+            <label class="radio-item"><input type="radio" name="controller-type" value="third-party"><span class="radio-label">第三方手柄</span><span class="radio-desc">可自定义摇杆死区、响应曲线等</span></label>
+            <label class="radio-item"><input type="radio" name="controller-type" value="unsure"><span class="radio-label">我不确定</span><span class="radio-desc">系统自动检测</span></label>
+          </div>
+        </div>
+      </div>
+      <button id="btn-start-test" class="btn btn-primary btn-large">🎯 开始灵敏度测试</button>
+    </div>
+  </div>
+
+  <!-- ═══ 页面2: 测试页 (TestControls 接管) ═══ -->
+  <div id="page-test" class="page">
+    <div id="test-controls-container"></div>
+  </div>
+
+  <!-- ═══ 页面3: 报告页 ═══ -->
+  <div id="page-report" class="page">
+    <div class="report-container">
+      <div class="report-header">
+        <h2>📊 灵敏度测试报告</h2>
+        <div class="report-actions">
+          <button id="btn-export-json" class="btn btn-secondary">📋 复制 JSON</button>
+          <button id="btn-export-html" class="btn btn-secondary">📄 下载 HTML 报告</button>
+          <button id="btn-print" class="btn btn-secondary">🖨️ 打印</button>
+          <button id="btn-back-setup" class="btn btn-ghost">← 重新测试</button>
+        </div>
+      </div>
+      <div class="tabs" id="report-tabs">
+        <button class="tab active" data-tab="tab-overview">📊 测试概览</button>
+        <button class="tab" data-tab="tab-mouse">🖱️ 鼠标灵敏度</button>
+        <button class="tab" data-tab="tab-controller">🎮 手柄参数</button>
+        <button class="tab" data-tab="tab-scores">📈 测试成绩</button>
+        <button class="tab" data-tab="tab-export">📋 导出</button>
+      </div>
+      <div class="tab-contents">
+        <div class="tab-pane active" id="tab-overview">
+          <div class="card"><div class="card-header"><span>📊 测试概览</span></div>
+            <div class="card-body">
+              <div class="info-grid">
+                <div class="info-item"><span class="info-label">测试日期</span><span class="info-value" id="ov-date">—</span></div>
+                <div class="info-item"><span class="info-label">设备类型</span><span class="info-value" id="ov-device">—</span></div>
+                <div class="info-item"><span class="info-label">鼠标 DPI</span><span class="info-value" id="ov-dpi">—</span></div>
+                <div class="info-item"><span class="info-label">检测轮询率</span><span class="info-value" id="ov-polling">—</span></div>
+                <div class="info-item"><span class="info-label">连接方式</span><span class="info-value" id="ov-connection">—</span></div>
+                <div class="info-item"><span class="info-label">手柄类型</span><span class="info-value" id="ov-controller">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-mouse">
+          <div class="card"><div class="card-header"><span>🖱️ 鼠标灵敏度参数</span></div>
+            <div class="card-body">
+              <h3 class="section-title">🎯 最优灵敏度</h3>
+              <div class="result-badge">
+                <div class="badge-row"><span class="badge-label">cm/360°</span><span class="badge-value" id="ms-cm360">—</span></div>
+                <div class="badge-row"><span class="badge-label">in/360°</span><span class="badge-value" id="ms-in360">—</span></div>
+                <div class="badge-row"><span class="badge-label">eDPI</span><span class="badge-value" id="ms-edpi">—</span></div>
+              </div>
+              <h3 class="section-title">📐 灵敏度格式对照表</h3>
+              <p class="section-desc">不同游戏使用不同格式，请根据你的游戏选择对应值。</p>
+              <div class="table-wrap" id="sensitivity-format-table"></div>
+              <h3 class="section-title">📏 DPI 等效换算表</h3>
+              <p class="section-desc">保持 eDPI 不变 = 手感不变。</p>
+              <div class="table-wrap" id="dpi-table"></div>
+              <h3 class="section-title">🎮 各游戏灵敏度设置值</h3>
+              <p class="section-desc">基于 PSA 算法计算的推荐值，可直接用于对应游戏设置。</p>
+              <div class="table-wrap" id="game-sensitivity-table"></div>
+              <h3 class="section-title">🔭 开镜灵敏度</h3>
+              <div class="table-wrap" id="scope-table"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-controller">
+          <div class="card"><div class="card-header"><span>🎮 手柄参数</span></div>
+            <div class="card-body" id="controller-content">
+              <div class="empty-state"><div class="empty-icon">🎮</div><p>未启用手柄测试</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-scores">
+          <div class="card"><div class="card-header"><span>📈 测试成绩</span></div>
+            <div class="card-body">
+              <div class="score-grid">
+                <div class="score-card"><h4>🎯 拉枪测试</h4><div class="score-value" id="sc-flick">—</div><div class="score-label">准确率</div></div>
+                <div class="score-card"><h4>🎯 跟枪测试</h4><div class="score-value" id="sc-tracking">—</div><div class="score-label">追踪偏差</div></div>
+                <div class="score-card"><h4>⚡ 反应测试</h4><div class="score-value" id="sc-reaction">—</div><div class="score-label">平均反应时间 (ms)</div></div>
+              </div>
+              <div class="chart-placeholder" id="hitmap-chart"><canvas id="hitmap-canvas"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-export">
+          <div class="card"><div class="card-header"><span>📋 导出报告</span></div>
+            <div class="card-body">
+              <div class="export-options">
+                <button class="btn btn-primary btn-export" data-format="json">📋 复制 JSON</button>
+                <button class="btn btn-primary btn-export" data-format="html">📄 下载 HTML</button>
+                <button class="btn btn-primary btn-export" data-format="print">🖨️ 打印</button>
+              </div>
+              <div class="export-preview">
+                <h4>📦 报告数据预览</h4>
+                <pre id="export-preview-code" class="code-block">// 点击上方按钮导出</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- ═══ Scripts ═══ -->
+<script src="core/sensitivity/parameter_model.js"></script>
+<script src="core/sensitivity/game_profiles.js"></script>
+<script src="core/sensitivity/config_exporter.js"></script>
+<script src="aim_trainer/targets.js"></script>
+<script src="aim_trainer/scene.js"></script>
+<script src="ui/main_panel.js"></script>
+<script src="ui/report_view.js"></script>
+<script src="ui/test_controls.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  window.__APP__ = {
+    model: new ParameterModel(),
+    profiles: new GameProfiles(),
+    exporter: new ConfigExporter(),
+    mainPanel: null,
+    reportView: null,
+    testControls: null
+  };
+  var app = window.__APP__;
+  app.mainPanel = new MainPanel(app);
+  app.reportView = new ReportView(app);
+
+  // 控制台快捷入口
+  window.demoReport = function() {
+    app.model.loadDemoData(400, 'xbox');
+    app.reportView.render(app.model);
+    MainPanel.showPage('page-report');
+  };
+});
+</script>
+</body>
+</html>
