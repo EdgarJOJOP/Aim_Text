@@ -46,7 +46,7 @@
           </div>
         </div>
       </div>
-      <button id="btn-start-test" class="btn btn-primary btn-large">🎯 开始灵敏度测试</button>
+      <div class="card"><div class="card-header"><span>🔄</span><span>手柄操作设置</span></div><div class="card-body"><label class="field-label">方向反转：</label><div style="display:flex;gap:20px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 0"><input type="checkbox" id="invert-x"> <span>水平反转 (X轴)</span></label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 0"><input type="checkbox" id="invert-y"> <span>垂直反转 (Y轴)</span></label></div><label class="field-label" style="margin-top:12px">操作手：</label><div class="radio-group"><label class="radio-item"><input type="radio" name="hand-mode" value="right" checked><span class="radio-label">右手（默认）</span><span class="radio-desc">右摇杆瞄准 · 左摇杆移动</span></label><label class="radio-item"><input type="radio" name="hand-mode" value="left"><span class="radio-label">左手（左撇子）</span><span class="radio-desc">左摇杆瞄准 · 右摇杆移动</span></label></div></div></div>      <button id="btn-start-test" class="btn btn-primary btn-large">🎯 开始灵敏度测试 (A)</button>
     </div>
   </div>
 
@@ -64,7 +64,7 @@
           <button id="btn-export-json" class="btn btn-secondary">📋 复制 JSON</button>
           <button id="btn-export-html" class="btn btn-secondary">📄 下载 HTML 报告</button>
           <button id="btn-print" class="btn btn-secondary">🖨️ 打印</button>
-          <button id="btn-back-setup" class="btn btn-ghost">← 重新测试</button>
+          <button id="btn-back-setup" class="btn btn-ghost">← 重新测试 (B)</button>
         </div>
       </div>
       <div class="tabs" id="report-tabs">
@@ -83,7 +83,6 @@
                 <div class="info-item"><span class="info-label">设备类型</span><span class="info-value" id="ov-device">—</span></div>
                 <div class="info-item"><span class="info-label">鼠标 DPI</span><span class="info-value" id="ov-dpi">—</span></div>
                 <div class="info-item"><span class="info-label">检测轮询率</span><span class="info-value" id="ov-polling">—</span></div>
-                <div class="info-item"><span class="info-label">连接方式</span><span class="info-value" id="ov-connection">—</span></div>
                 <div class="info-item"><span class="info-label">手柄类型</span><span class="info-value" id="ov-controller">—</span></div>
               </div>
             </div>
@@ -158,6 +157,7 @@
 <script src="core/sensitivity/game_profiles.js"></script>
 <script src="core/sensitivity/config_exporter.js"></script>
 <script src="aim_trainer/targets.js"></script>
+<script src="core/hardware/gamepad_capture_stub.js"></script>
 <script src="aim_trainer/scene.js"></script>
 <script src="ui/main_panel.js"></script>
 <script src="ui/report_view.js"></script>
@@ -173,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
     testControls: null
   };
   var app = window.__APP__;
+  window.__GAMEPAD__ = new GamepadCapture();
   app.mainPanel = new MainPanel(app);
   app.reportView = new ReportView(app);
 

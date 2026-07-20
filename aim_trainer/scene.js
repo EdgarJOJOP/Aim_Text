@@ -1,5 +1,5 @@
 class AimScene {
-  constructor(cid){
+  constructor(cid){this.invertX=!!window.__GAMEPAD_INVERT_X__;this.invertY=!!window.__GAMEPAD_INVERT_Y__;this.leftHanded=!!window.__GAMEPAD_LEFT_HANDED__;
     this.container=document.getElementById(cid);
     this.scene=null;this.camera=null;this.renderer=null;this.clock=new THREE.Clock();
     this.yaw=0;this.pitch=0;this.isLocked=false;this.sensitivity=0.002;
@@ -8,7 +8,9 @@ class AimScene {
     this.flickShots=[];this.trackingSamples=[];this.adsShots=[];
     this.testStartTime=0;this.targetSpawnTime=0;this.targetTimeout=8;
     this.onStatsUpdate=null;this.onComplete=null;this.onHitCallback=null;this.onAdsCallback=null;
-    this.mouseEventTimes=[];
+    this.mouseEventTimes=[];this.rawEventCount=0;this._pollingTimeStart=0;
+    this.gamepad=null;
+    this.gamepadTimestamps=[];this.aimSamples=[];this.aimSamplesX=[];this.aimSamplesY=[];this.peakStickX=0;this.peakStickY=0;this.sampleCount=0;
     this.isAds=false;
     this.trackingElapsed=0;this.trackingDuration=5;
   }
@@ -30,15 +32,22 @@ class AimScene {
     var s=this;
     this.renderer.domElement.addEventListener('click',function(){if(!s.isLocked&&s.running)s.renderer.domElement.requestPointerLock();});
     document.addEventListener('pointerlockchange',function(){s.isLocked=document.pointerLockElement===s.renderer.domElement;});
-    document.addEventListener('mousemove',function(e){
+    document.addEventListener('pointermove',function(e){
       if(!s.isLocked||!s.running)return;
-      s.yaw-=e.movementX*s.sensitivity;s.pitch-=e.movementY*s.sensitivity;
-      s.pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,s.pitch));
-      s.mouseEventTimes.push(performance.now());if(s.mouseEventTimes.length>500)s.mouseEventTimes.shift();
-      if(s.activeTarget&&!s.activeTarget.hit&&s.activeTarget.type==='moving'){
-        var d=new THREE.Vector3(0,0,-1),e2=new THREE.Euler(s.pitch,s.yaw,0,'YXZ');d.applyEuler(e2);
-        var t=s.activeTarget.getPos().clone().sub(s.camera.position).normalize();
-        s.trackingSamples.push({deviation:d.angleTo(t),timestamp:performance.now()});
+      var ces=e.getCoalescedEvents&&e.getCoalescedEvents()||[e];
+      var now=performance.now();
+      if(!s._pollingTimeStart)s._pollingTimeStart=now;
+      s.rawEventCount+=ces.length;
+      s.mouseEventTimes.push(now);if(s.mouseEventTimes.length>200)s.mouseEventTimes.shift();
+      for(var ci=0;ci<ces.length;ci++){
+        var ce=ces[ci];
+        s.yaw-=ce.movementX*s.sensitivity;s.pitch-=ce.movementY*s.sensitivity;
+        s.pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,s.pitch));
+        if(s.activeTarget&&!s.activeTarget.hit&&s.activeTarget.type==='moving'){
+          var d=new THREE.Vector3(0,0,-1),e2=new THREE.Euler(s.pitch,s.yaw,0,'YXZ');d.applyEuler(e2);
+          var t=s.activeTarget.getPos().clone().sub(s.camera.position).normalize();
+          s.trackingSamples.push({deviation:d.angleTo(t),timestamp:performance.now()});
+        }
       }
     });
     document.addEventListener('mousedown',function(e){
@@ -85,7 +94,7 @@ class AimScene {
   start(mode,rounds){
     if(this.running)return;
     if(!this.initialized){this.init();var s=this;setTimeout(function(){s.start(mode,rounds);},200);return;}
-    this.flickShots=[];this.trackingSamples=[];this.adsShots=[];this.mouseEventTimes=[];
+    this.flickShots=[];this.trackingSamples=[];this.adsShots=[];this.mouseEventTimes=[];this.rawEventCount=0;this._pollingTimeStart=0;
     this.round=1;this.mode=mode||'flick';this.maxRounds=rounds||10;
     this.isAds=false;
     this.clock=new THREE.Clock();
@@ -100,17 +109,19 @@ class AimScene {
   _clear(){for(var i=0;i<this.targets.length;i++)this.targets[i].removeFrom(this.scene);this.targets=[];this.activeTarget=null;}
   _finishScenario(){this.running=false;this._clear();if(this.onComplete)this.onComplete(this._getResults());}
   _getResults(){
-    var r={flickStats:null,trackingStats:null,adsStats:null,pollingRate:null};
-    if(this.mouseEventTimes.length>5){var t=this.mouseEventTimes,d=[];for(var i=1;i<t.length;i++)d.push(t[i]-t[i-1]);d.sort(function(a,b){return a-b;});var st=Math.floor(d.length*0.1),en=Math.ceil(d.length*0.9),mid=d.slice(st,en),avg=mid.reduce(function(a,b){return a+b;},0)/mid.length;r.pollingRate=avg>0?Math.round(1000/avg):null;}
-    if(this.flickShots.length>0){var h=this.flickShots.filter(function(s){return s.hit;}).length,hs=this.flickShots.filter(function(s){return s.hit;});r.flickStats={total:this.flickShots.length,hits:h,accuracy:h/this.flickShots.length,avgReactionTime:hs.length?hs.reduce(function(a,s){return a+s.reactionTime;},0)/hs.length:0};}
+    var r={flickStats:null,trackingStats:null,adsStats:null,pollingRate:null,gamepadPollingRate:null};
+    if(this.rawEventCount>2&&this._pollingTimeStart){var elapsed=performance.now()-this._pollingTimeStart;r.pollingRate=elapsed>0?Math.round(this.rawEventCount/elapsed*1000):null;}else if(this.mouseEventTimes.length>2){var t=this.mouseEventTimes,d=[];for(var i=1;i<t.length;i++)d.push(t[i]-t[i-1]);d.sort(function(a,b){return a-b;});var st=Math.floor(d.length*0.1),en=Math.ceil(d.length*0.9),mid=d.slice(st,en),avg=mid.reduce(function(a,b){return a+b;},0)/mid.length;r.pollingRate=avg>0?Math.round(1000/avg):null;}
+    if(this.flickShots.length>0){var h=this.flickShots.filter(function(s){return s.hit;}).length;r.flickStats={total:this.flickShots.length,hits:h,accuracy:h/this.flickShots.length,avgReactionTime:this.flickShots.length?this.flickShots.reduce(function(a,s){return a+s.reactionTime;},0)/this.flickShots.length:0};}
     if(this.trackingSamples.length>0){var de=this.trackingSamples.map(function(s){return s.deviation;}),av=de.reduce(function(a,b){return a+b;},0)/de.length;r.trackingStats={samples:this.trackingSamples.length,avgDeviation:av,maxDeviation:Math.max.apply(null,de),timeOnTarget:de.filter(function(d){return d<0.2;}).length/de.length,trackingScore:Math.max(0,Math.min(1,1-av*2))};}
-    if(this.adsShots.length>0){var h2=this.adsShots.filter(function(s){return s.hit;}).length,hs2=this.adsShots.filter(function(s){return s.hit;});r.adsStats={total:this.adsShots.length,hits:h2,accuracy:h2/this.adsShots.length,avgReactionTime:hs2.length?hs2.reduce(function(a,s){return a+s.reactionTime;},0)/hs2.length:0};}
+    if(this.adsShots.length>0){var h2=this.adsShots.filter(function(s){return s.hit;}).length;r.adsStats={total:this.adsShots.length,hits:h2,accuracy:h2/this.adsShots.length,avgReactionTime:this.adsShots.length?this.adsShots.reduce(function(a,s){return a+s.reactionTime;},0)/this.adsShots.length:0};}
+    if(this.gamepadTimestamps.length>2){var gt=this.gamepadTimestamps,gd=[];for(var gi=1;gi<gt.length;gi++){var gdiff=gt[gi]-gt[gi-1];if(gdiff>0)gd.push(gdiff);}if(gd.length>=4){gd.sort(function(a,b){return a-b;});var gst=Math.floor(gd.length*0.1),gen=Math.ceil(gd.length*0.9),gmid=gd.slice(gst,gen),gavg=gmid.reduce(function(a,b){return a+b;},0)/gmid.length;r.gamepadPollingRate=gavg>0?Math.round(1000/gavg):null;}}if(this.aimSamplesX.length>0||this.aimSamplesY.length>0){var cs=function(d){if(!d||d.length<1)return null;var s=d.slice().sort(function(a,b){return Math.abs(a.i)-Math.abs(b.i);});var st=Math.floor(s.length*0.1),en=Math.ceil(s.length*0.9),mid=s.slice(st,en);var si=0,so=0,sio=0,sii=0;for(var i=0;i<mid.length;i++){var ai=Math.abs(mid[i].i),ao=Math.abs(mid[i].o);si+=ai;so+=ao;sio+=ai*ao;sii+=ai*ai;}var n=mid.length,sRatio=si>0?(so/n)/(si/n)*100:0,sSlope=sii>0?sio/sii:0;var segs=[],segSize=Math.max(1,Math.floor(s.length/8));for(var si2=0;si2<8;si2++){var a2=si2*segSize,b2=Math.min((si2+1)*segSize,s.length);if(a2>=s.length)break;var ssi=0,sso=0,sc2=0;for(var j2=a2;j2<b2;j2++){ssi+=Math.abs(s[j2].i);sso+=Math.abs(s[j2].o);sc2++;}segs.push({input:sc2?ssi/sc2:0,output:sc2?sso/sc2:0});}return{ratio:parseFloat(sRatio.toFixed(2)),intVal:Math.round(sRatio*15),slope:parseFloat(sSlope.toFixed(4)),curveData:segs,samples:s.length};};var sx=cs(this.aimSamplesX),sy=cs(this.aimSamplesY);if(sx||sy){r.stickSensitivity=sx||sy;r.stickSensitivity.ratioX=sx?sx.ratio:null;r.stickSensitivity.ratioY=sy?sy.ratio:null;r.stickSensitivity.peakX=parseFloat(this.peakStickX.toFixed(2));r.stickSensitivity.peakY=parseFloat(this.peakStickY.toFixed(2));r.stickSensitivity.totalSamples=this.sampleCount;}}
     return r;
   }
   _emitStats(){var ts=0;if(this.trackingSamples.length>0){var d=this.trackingSamples.map(function(s){return s.deviation;});var a=d.reduce(function(x,y){return x+y;},0)/d.length;ts=Math.max(0,Math.min(1,1-a*2));}if(this.onStatsUpdate)this.onStatsUpdate({round:this.round,maxRounds:this.maxRounds,mode:this.mode,flickHits:this.flickShots.filter(function(s){return s.hit;}).length,flickTotal:this.flickShots.length,trackingSamples:this.trackingSamples.length,trackingScore:ts,adsHits:this.adsShots.filter(function(s){return s.hit;}).length,adsTotal:this.adsShots.length});}
   _animate(){
     var s=this;requestAnimationFrame(function(){s._animate();});
     var dt=this.clock.getDelta();this.camera.rotation.y=this.yaw;this.camera.rotation.x=this.pitch;
+    if(this.running)this._pollGamepad();
     if(this.running&&this.mode==='tracking'&&this.activeTarget){this.trackingElapsed+=dt;if(this.trackingElapsed>=this.trackingDuration){this._advanceTracking();}}
     if(this.running&&this.activeTarget&&!this.activeTarget.hit&&this.mode!=='tracking'&&(performance.now()-this.targetSpawnTime)/1000>this.targetTimeout){this.activeTarget.removeFrom(this.scene);var i2=this.targets.indexOf(this.activeTarget);if(i2>=0)this.targets.splice(i2,1);this.activeTarget=null;this._nextTarget();}
     this.targets=this.targets.filter(function(t){var a=t.update(dt);if(!a){t.removeFrom(s.scene);return false;}return true;});
@@ -119,6 +130,31 @@ class AimScene {
   _advanceTracking(){
     if(this.activeTarget){this.activeTarget.removeFrom(this.scene);var i=this.targets.indexOf(this.activeTarget);if(i>=0)this.targets.splice(i,1);this.activeTarget=null;}
     this._nextTarget();
+  }
+  _pollGamepad(){
+    if(!window.__GAMEPAD__)return;
+    var gp=window.__GAMEPAD__;
+    var state=gp.poll();
+    if(!state)return;
+    if(state.axes[2]||state.axes[3]){
+      var lh=this.leftHanded;var aimX=lh?state.axes[0]:state.axes[2];var aimY=lh?state.axes[1]:state.axes[3];var ix=this.invertX?-1:1;var iy=this.invertY?1:-1;if(typeof console!=='undefined')console.log('[DBG] invertX='+this.invertX+' invertY='+this.invertY+' iy='+iy);this.yaw-=aimX*0.008*ix;this.pitch+=aimY*0.008*iy;
+      
+      this.pitch=Math.max(-Math.PI/2.2,Math.min(Math.PI/2.2,this.pitch));
+      this.gamepadTimestamps.push(performance.now());if(this.gamepadTimestamps.length>200)this.gamepadTimestamps.shift();if(Math.abs(aimX)>0.01){this.aimSamplesX.push({i:aimX,o:aimX*0.008*ix});if(this.aimSamplesX.length>2000)this.aimSamplesX.shift();if(Math.abs(aimX)>this.peakStickX)this.peakStickX=Math.abs(aimX);}if(Math.abs(aimY)>0.01){this.aimSamplesY.push({i:aimY,o:aimY*0.008*iy});if(this.aimSamplesY.length>2000)this.aimSamplesY.shift();if(Math.abs(aimY)>this.peakStickY)this.peakStickY=Math.abs(aimY);}this.sampleCount++;
+      if(this.activeTarget&&!this.activeTarget.hit&&this.activeTarget.type==='moving'){
+        var d2=new THREE.Vector3(0,0,-1),e2=new THREE.Euler(this.pitch,this.yaw,0,'YXZ');d2.applyEuler(e2);
+        var t=this.activeTarget.getPos().clone().sub(this.camera.position).normalize();
+        this.trackingSamples.push({deviation:d2.angleTo(t),timestamp:performance.now()});
+      }
+    }
+    var now=performance.now();
+    if(!this._lastFire)this._lastFire=0;
+    var rtVal=state.buttons.rt;
+    var rbVal=state.buttons.rb;
+    var fire=gp.buttonJustPressed('rt')||gp.buttonJustPressed('rb');
+    if(!fire&&(rtVal||rbVal)&&now-this._lastFire>350)fire=true;
+    if(fire&&now-this._lastFire>150){this._fireShot();this._lastFire=now;}
+    if(gp.buttonJustPressed('lt')){this.isAds=!this.isAds;if(this.onAdsCallback)this.onAdsCallback(this.isAds);if(this.isAds){this.yaw=0;this.pitch=0;}}
   }
   destroy(){this.running=false;this.initialized=false;this._clear();if(this.renderer){this.renderer.dispose();this.container.innerHTML='';}if(this._resizeHandler)window.removeEventListener('resize',this._resizeHandler);if(document.pointerLockElement===this.renderer&&this.renderer)document.exitPointerLock();}
 }
