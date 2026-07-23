@@ -78,9 +78,9 @@ class TestControls {
     var ch=document.getElementById('tc-crosshair');if(ch)ch.style.display='none';
     document.getElementById('tc-btn-start').textContent='✅ 完成';document.getElementById('tc-btn-start').disabled=false;
     if(this.scene){this.scene.stop();this.scene.destroy();this.scene=null;}
-    var fa=0,fn=0,ts=0,tn=0,frt=0,frc=0,arc=0,aa=0,an=0,pr=0,pn=0,gpr=0,gpn=0,ss=null;
-    Object.keys(this.allResults).forEach(function(k){var r=this.allResults[k];if(r.flickStats){fa+=r.flickStats.accuracy*r.flickStats.total;fn+=r.flickStats.total;frt+=r.flickStats.avgReactionTime*r.flickStats.total;frc+=r.flickStats.total;}if(r.trackingStats){ts+=r.trackingStats.trackingScore;tn++;}if(r.adsStats){aa+=r.adsStats.accuracy*r.adsStats.total;an+=r.adsStats.total;art+=r.adsStats.avgReactionTime*r.adsStats.total;arc+=r.adsStats.total;}if(r.pollingRate){pr+=r.pollingRate;pn++;}if(r.gamepadPollingRate){gpr+=r.gamepadPollingRate;gpn++;}if(r.stickSensitivity)ss=r.stickSensitivity;}.bind(this));
-    var afa=fn>0?fa/fn:0,ats=tn>0?ts/tn:0,art=frc>0?frt/frc:200,aaa=an>0?aa/an:0,apr=pn>0?Math.round(pr/pn):0,agpr=gpn>0?Math.round(gpr/gpn):0,dpi=this.app.model.userInput.dpi;
+    var fa=0,fn=0,ts=0,tn=0,frt=0,frc=0,arc=0,aa=0,an=0,art=0,tt=0,ttn=0,pr=0,pn=0,gpr=0,gpn=0,ss=null;
+    Object.keys(this.allResults).forEach(function(k){var r=this.allResults[k];if(r.flickStats){fa+=r.flickStats.accuracy*r.flickStats.total;fn+=r.flickStats.total;frt+=r.flickStats.avgReactionTime*r.flickStats.total;frc+=r.flickStats.total;}if(r.trackingStats){ts+=r.trackingStats.trackingScore;tn++;if(r.trackingStats.avgTransferTime!=null){tt+=r.trackingStats.avgTransferTime;ttn++;}}if(r.adsStats){aa+=r.adsStats.accuracy*r.adsStats.total;an+=r.adsStats.total;art+=r.adsStats.avgReactionTime*r.adsStats.total;arc+=r.adsStats.total;}if(r.pollingRate){pr+=r.pollingRate;pn++;}if(r.gamepadPollingRate){gpr+=r.gamepadPollingRate;gpn++;}if(r.stickSensitivity)ss=r.stickSensitivity;}.bind(this));
+    var afa=fn>0?fa/fn:0,ats=tn>0?ts/tn:0,art=frc>0?frt/frc:200,transferTime=ttn>0?tt/ttn:art,aaa=an>0?aa/an:0,apr=pn>0?Math.round(pr/pn):0,agpr=gpn>0?Math.round(gpr/gpn):0,dpi=this.app.model.userInput.dpi;
     var ctl=this.app.model.userInput.controllerType;var ic=35;if(ats<0.6)ic=45;if(afa<0.6)ic=25;var b=360/(dpi*0.022*ic);var af=1+(afa-0.75)*0.6;af=Math.max(0.6,Math.min(1.4,af));var rf=1;if(art>300)rf=1.15;else if(art<180)rf=0.85;var tf=1;if(ats<0.6)tf=0.85;else if(ats>0.9)tf=1.1;var sens=b*af*rf*tf;sens=Math.max(0.1,Math.min(10,sens));var am=an>0&&fn>0?afa/aaa*0.85:0.85;am=Math.max(0.3,Math.min(2,am));if(ctl!=='none'){sens=3;am=0.85;}
     var gs=[{game:'CS2',format:'sensitivity',value:sens.toFixed(2),sp:'console: sensitivity '+sens.toFixed(2)+'; zoom_sensitivity '+am.toFixed(2)},{game:'Valorant',format:'float',value:(sens/2.22).toFixed(4),sp:'设置→鼠标→灵敏度'},{game:'Apex Legends',format:'float',value:sens.toFixed(2),sp:'设置→鼠标/键盘; ADS倍率: '+am.toFixed(2)},{game:'Overwatch 2',format:'float',value:(sens*3.33).toFixed(2),sp:'设置→控制→灵敏度'},{game:'Call of Duty',format:'int 1-20',value:Math.round(sens*7.5)+'',sp:'设置→鼠标→灵敏度'},{game:'BF2042',format:'%',value:Math.round(sens*15)+'%',sp:'设置→鼠标→灵敏度'},{game:'R6 Siege',format:'int 1-100',value:Math.round(sens*15)+'',sp:'设置→控制→灵敏度'},{game:'Destiny 2',format:'int 1-20',value:Math.round(sens*5)+'',sp:'设置→控制→灵敏度'}];
     var ctrlType=this.app.model.userInput.controllerType;var m=this.app.model;m.reset();m.setDpi(dpi);m.setControllerType(ctrlType);m.calculateFromGameSensitivity(sens);
@@ -88,8 +88,171 @@ class TestControls {
     m.scores.flickAccuracy=afa;m.scores.flickAvgTimeMs=art;m.scores.trackingScore=ats;m.scores.trackingDeviation=ats>0?(1-ats)*0.5:null;
     m.scores.reactionTimeMs=art;m.scores.reactionAccuracy=afa;m.scores.hitMap=[];if(fn>0){for(var i=0;i<50;i++)m.scores.hitMap.push({x:(Math.random()-0.5)*2,y:(Math.random()-0.5)*2,hit:Math.random()<afa});}
     m.meta.iterations=3;m.meta.testDuration=(performance.now()-this.testStartTime)/1000;m.gameSensitivityTable=gs;m.adsMultiplier=parseFloat(am.toFixed(2));
+    // ★ Apex 控制器适配评估
+    if(ctl!=='none'){m.apex=this._calculateApexFit(afa,ats,transferTime,ss,agpr);}
     var ph=document.getElementById('tc-placeholder');if(ph)ph.style.display='';
     if(this.app.reportView){this.app.reportView.render(m);MainPanel.showPage('page-report');}
+  }
+  // ★ Apex 线性43适配评估 + ACL 参数计算（v2：指数加权惩罚 + 单项门槛 + 80%阈值）
+  _calculateApexFit(flickAcc, trackingScore, reactionTime, stickSens, gamepadPollingRate) {
+    var rt = reactionTime || 250;
+    // — 1. 指数加权评分：低分平方惩罚 —
+    // 拉枪准确率：理想基准0.8，低于基准时平方降分
+    var flickRaw = Math.min(1, (flickAcc||0) / 0.8);
+    var flickScore = flickRaw * flickRaw;
+    // 跟枪得分：理想基准0.8
+    var trackRaw = Math.min(1, (trackingScore||0) / 0.8);
+    var trackScore = trackRaw * trackRaw;
+    // 反应时间：理想基准150ms，分母400让变化更平滑
+    var reactRaw = rt > 0 ? Math.max(0, 1 - (rt - 150) / 400) : 0.5;
+    var reactScore = reactRaw * reactRaw;
+    // 摇杆控制评估：使用摇杆峰值(peakStick)和有效斜率(slope)
+    // 不再使用 ratio（因为 o=aimX*0.008 固定系数，ratio恒为0.8无区分度）
+    var ratioScore = 0.5;
+    var peakStick = 0;
+    if (stickSens) {
+      peakStick = Math.max(
+        (stickSens.peakX) || 0,
+        (stickSens.peakY) || 0
+      );
+      // 峰值高→线性控制好，峰值低→推幅不足
+      var peakRaw = Math.min(1, peakStick / 0.7);
+      ratioScore = peakRaw * peakRaw;
+    }
+
+    // — 2. 加权总分 —
+    var scoreItems = [
+      {score: flickScore, weight: 0.3},
+      {score: trackScore, weight: 0.3},
+      {score: reactScore, weight: 0.2},
+      {score: ratioScore, weight: 0.2}
+    ];
+    var totalWeight = scoreItems.reduce(function(a, b) { return a + b.weight; }, 0);
+    var weightedScore = scoreItems.reduce(function(a, b) { return a + b.score * b.weight; }, 0) / totalWeight;
+
+    // — 3. 单项最低门槛检查（硬性指标）—
+    var flickOk = (flickAcc||0) >= 0.6;
+    var trackOk = (trackingScore||0) >= 0.6;
+    var reactOk = rt <= 350;
+
+    // — 4. 综合判断：总分≥80% 且所有单项达标 —
+    var isFit = weightedScore >= 0.8 && flickOk && trackOk && reactOk;
+
+    // — 5. 原因说明 —
+    var reason = '';
+    var scorePct = Math.round(weightedScore * 100);
+    if (isFit) {
+      reason = '测试者参数与线性43适配良好（综合评分' + scorePct + '%），所有指标均达标，继续保持当前设置。';
+    } else {
+      var parts = ['综合评分' + scorePct + '%（需≥80%）'];
+      if (!flickOk) parts.push('拉枪准确率' + Math.round((flickAcc||0)*100) + '%（需≥60%）');
+      if (!trackOk) parts.push('跟枪得分' + Math.round((trackingScore||0)*100) + '%（需≥60%）');
+      if (!reactOk) {
+        var rtNote = '反应时间' + Math.round(rt) + 'ms（需≤350ms）';
+        if (rt > 1500) rtNote += ' 💡 用手柄跟踪移动目标难度较高，建议先熟悉摇杆瞄准';
+        parts.push(rtNote);
+      }
+      if (peakStick < 0.3) parts.push('摇杆推幅不足(峰值' + peakStick.toFixed(2) + '，需>0.3)');
+      reason = '线性43不完全适配：' + parts.join('；') + '。建议切换到ACL模式进行详细优化。';
+    }
+
+    // — 6. ACL完整参数（基于PSA动态数据计算，匹配Apex Advanced Look Controls全部项目）—
+    var acl = null;
+    if (!isFit) {
+      // ---- Hipfire (腰射) 参数 ----
+      // 基准Yaw Speed从线性43的灵敏度4起步（对应ACL ~150）
+      var baseYaw = 150;
+      // 根据PSA测试数据调整
+      if ((flickAcc||0) < 0.6) baseYaw += 20;        // 拉枪慢→提高转速
+      else if ((flickAcc||0) > 0.85) baseYaw -= 10;    // 拉枪准→降低转速更精细
+      if ((trackingScore||0) < 0.6) baseYaw -= 15;     // 跟枪差→降低转速增加控制
+      else if ((trackingScore||0) > 0.85) baseYaw += 10;
+      if (rt > 400) baseYaw += 15;                     // 反应慢→提高转速
+      else if (rt < 200) baseYaw -= 10;
+      // 摇杆峰值低→输出不足→提高转速补偿
+      if (peakStick > 0 && peakStick < 0.3) baseYaw += 25;
+      // ★ 轮询率全局因子：低轮询率→所有速度降低（信息少需稳定），高轮询率→可适度提高
+      // 基准250Hz，公式 (pollingRate/250)^0.7，范围0.35~1.5
+      var pollingFactor = 1.0;
+      if (gamepadPollingRate > 0) {
+        pollingFactor = Math.max(0.35, Math.min(1.5, Math.pow(gamepadPollingRate / 250, 0.85)));
+      }
+      var yawSpeed = Math.max(40, Math.min(250, Math.round(baseYaw * pollingFactor)));
+
+      // 垂直速度：水平速度的70-85%
+      var pitchRatio = (trackingScore||0) < 0.6 ? 0.70 : ((trackingScore||0) > 0.85 ? 0.85 : 0.78);
+      var pitchSpeed = Math.max(30, Math.min(250, Math.round(yawSpeed * pitchRatio)));
+
+      // 转向额外速度（摇杆推到底的额外增量）
+      var yawExtraBase = Math.round(yawSpeed * 0.25);
+      if ((flickAcc||0) < 0.6) yawExtraBase = Math.round(yawExtraBase * 1.5);
+      var yawExtra = Math.max(0, Math.min(250, Math.round(yawExtraBase / 5) * 5));
+      var pitchExtra = Math.max(0, Math.min(250, Math.round(Math.round(yawExtra * 0.7) / 5) * 5));
+
+      // 转向启动延迟（Ramp-Up Time）— 反应快→高延迟精细控制，反应慢→低延迟快速加速
+      // 转向启动时间 (Ramp Up Time) — 跟枪差→时间短(快速达最大速度辅助跟踪)，跟枪好→时间长(平滑控制)
+      var rampUpTime = Math.max(0, Math.min(100, Math.round(60 - (trackingScore||0) * 40)));
+      // 转向启动延迟 (Ramp Up Delay) — 跟枪差→延迟短(快速响应)，跟枪好→延迟稍长(精细操作)
+      var rampUpDelay = Math.max(0, Math.min(100, Math.round(20 - (trackingScore||0) * 15)));
+
+      // 响应曲线 (1-30)：跟枪差→高曲线辅助，跟枪好→低曲线(接近线性)
+      var curveVal = 7; // 默认
+      if ((trackingScore||0) > 0.8) curveVal = 3;       // 跟枪好→接近线性
+      else if ((trackingScore||0) > 0.6) curveVal = 5;   // 跟枪中→中等
+      else if ((trackingScore||0) > 0.4) curveVal = 7;   // 跟枪差→高曲线辅助
+      else curveVal = 10;
+      // 有效斜率低（输出不成比例）→提高曲线补偿
+      if (stickSens && stickSens.slope != null && stickSens.slope < 0.5) curveVal = Math.min(30, curveVal + 3);
+
+      // 死角 (Deadzone %) — 峰值高→死区小(精细控制)，峰值低→死区稍大(防止漂移)
+      var deadzonePct = Math.round(4 + (1 - Math.min(peakStick||0.5, 1)) * 6);
+      // 跟枪偏差大→死区稍大减少抖动
+      if ((trackingScore||0) < 0.5) deadzonePct = Math.min(15, deadzonePct + 2);
+
+      // 外部阈值 (Outer Threshold 0-30%) — 跟枪差→低值(更快加速)，跟枪好→高值(精细控制)
+      var outerThreshold = Math.round(15 + (trackingScore||0) * 15);
+
+      // ---- ADS (开镜) 参数 ----
+      // ADS速度 = Hipfire减约10%（基于校准数据），额外转向与Hipfire一致
+      var adsYawSpeed = Math.round(yawSpeed * 0.9);
+      var adsPitchSpeed = Math.round(pitchSpeed * 0.9);
+      var adsYawExtra = Math.round(Math.round(yawExtra / 5) * 5);
+      var adsPitchExtra = Math.round(Math.round(pitchExtra / 5) * 5);
+      var adsRampUpTime = Math.min(100, Math.round(rampUpTime * 0.9));
+      var adsRampUpDelay = Math.min(100, Math.round(rampUpDelay * 1.1));
+
+      acl = {
+        // 死角
+        rightDeadzone: deadzonePct + '%',
+        leftDeadzone: deadzonePct + '%',
+        outerThreshold: outerThreshold + '%',
+        // 响应曲线
+        responseCurve: curveVal,
+        // Hipfire
+        yawSpeed: yawSpeed,
+        pitchSpeed: pitchSpeed,
+        yawExtra: yawExtra,
+        pitchExtra: pitchExtra,
+        rampUpTime: rampUpTime + '%',
+        rampUpDelay: rampUpDelay + '%',
+        // ADS
+        adsYawSpeed: adsYawSpeed,
+        adsPitchSpeed: adsPitchSpeed,
+        adsYawExtra: adsYawExtra,
+        adsPitchExtra: adsPitchExtra,
+        adsRampUpTime: adsRampUpTime + '%',
+        adsRampUpDelay: adsRampUpDelay + '%'
+      };
+    }
+
+    return {
+      linear43Fit: {
+        score: parseFloat(weightedScore.toFixed(2)),
+        isFit: isFit,
+        reason: reason
+      },
+      aclParams: acl
+    };
   }
 }
 window.TestControls=TestControls;

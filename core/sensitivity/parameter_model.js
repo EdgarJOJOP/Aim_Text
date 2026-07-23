@@ -10,6 +10,8 @@ class ParameterModel {
     this.controller = { leftStickInnerDeadzone: null, leftStickOuterDeadzone: null, leftStickAxialDeadzone: null, rightStickInnerDeadzone: null, rightStickOuterDeadzone: null, rightStickAxialDeadzone: null, responseCurveType: null, responseCurveData: [], invertY: null, invertX: null, vibration: null, vibrationIntensity: null, leftTriggerDeadzone: null, rightTriggerDeadzone: null, triggerResponseCurve: null, apexLookSensitivity: null, apexResponseCurve: null, apexAdsMultiplier: null, apexPerOptics: [] };
     this.scores = { flickAccuracy: null, flickAvgTimeMs: null, trackingDeviation: null, trackingScore: null, reactionTimeMs: null, reactionAccuracy: null, hitMap: [] };
     this.meta = { testDate: new Date().toISOString(), testDuration: null, iterations: 0 };
+    // Apex 控制器适配评估
+    this.apex = { linear43Fit: { score: null, isFit: null, reason: '' }, aclParams: null };
   }
   setDpi(dpi) { this.userInput.dpi = parseInt(dpi) || 400; }
   setControllerType(type) { this.userInput.controllerType = type; }
@@ -83,7 +85,7 @@ class ParameterModel {
     this.meta.iterations=8; this.meta.testDuration=360;
   }
   toJSON() {
-    return {meta:this.meta, userInput:this.userInput, hardware:this.hardware, mouse:this.mouse, controller:this.controller, scores:this.scores, dpiTable:this.generateDpiTable(), sensitivityFormats:this.generateSensitivityFormatTable(), gameSensitivityTable:this.gameSensitivityTable||[]};
+    return {meta:this.meta, userInput:this.userInput, hardware:this.hardware, mouse:this.mouse, controller:this.controller, scores:this.scores, apex:this.apex, dpiTable:this.generateDpiTable(), sensitivityFormats:this.generateSensitivityFormatTable(), gameSensitivityTable:this.gameSensitivityTable||[]};
   }
 }
 window.ParameterModel = ParameterModel;

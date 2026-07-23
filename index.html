@@ -71,6 +71,7 @@
         <button class="tab active" data-tab="tab-overview">📊 测试概览</button>
         <button class="tab" data-tab="tab-mouse">🖱️ 鼠标灵敏度</button>
         <button class="tab" data-tab="tab-controller">🎮 手柄参数</button>
+        <button class="tab" data-tab="tab-apex">⚡ Apex 适配</button>
         <button class="tab" data-tab="tab-scores">📈 测试成绩</button>
         <button class="tab" data-tab="tab-export">📋 导出</button>
       </div>
@@ -116,6 +117,16 @@
             <div class="card-body" id="controller-content">
               <div class="empty-state"><div class="empty-icon">🎮</div><p>未启用手柄测试</p></div>
             </div>
+          </div>
+        </div>
+        <div class="tab-pane" id="tab-apex">
+          <div class="card"><div class="card-header"><span>⚡ Apex Legends 控制器适配</span></div>
+            <div class="card-body" id="apex-content">
+              <div class="empty-state"><div class="empty-icon">⚡</div><p>未启用手柄测试</p></div>
+            </div>
+          </div>
+          <div class="card" id="apex-acl-card" style="display:none"><div class="card-header"><span>🔧 ACL 高级参数</span></div>
+            <div class="card-body" id="apex-acl-content"></div>
           </div>
         </div>
         <div class="tab-pane" id="tab-scores">

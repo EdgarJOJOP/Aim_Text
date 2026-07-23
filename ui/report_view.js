@@ -3,8 +3,8 @@ class ReportView {
   render(model) {
     this.model=model; this.app.exporter.setModel(model);
     this.renderOverview(model);
-    if(model.isControllerEnabled()){this.renderController(model);this._hideTab('tab-mouse');this._showTab('tab-controller');}
-    else{this.renderMouseSensitivity(model);this._showTab('tab-mouse');this._hideTab('tab-controller');}
+    if(model.isControllerEnabled()){this.renderController(model);this._hideTab('tab-mouse');this._showTab('tab-controller');this._showTab('tab-apex');this.renderApex(model);}
+    else{this.renderMouseSensitivity(model);this._showTab('tab-mouse');this._hideTab('tab-controller');this._hideTab('tab-apex');}
     this.renderScores(model);
     this.renderExportPreview(model);
     setTimeout(()=>this.renderCharts(model),100);
@@ -120,6 +120,83 @@ class ReportView {
   }
   _hideTab(id){var t=document.querySelector('.tab[data-tab='+id+']');if(t)t.style.display='none';}
   _showTab(id){var t=document.querySelector('.tab[data-tab='+id+']');if(t)t.style.display='';}
+  renderApex(model) {
+    var ac=document.getElementById('apex-content');
+    if(!ac) return;
+    var d=model.toJSON(), ctr=d.controller, apx=model.apex;
+    var s=d.scores;
+    // 线性43标准
+    var std={lookSens:4,adsSens:3,curve:'线性 (Response Curve 0)'};
+    // 测试者当前参数
+    var cur={lookSens:ctr.apexLookSensitivity||'—',adsSens:ctr.apexAdsSensitivity||'—',curve:ctr.responseCurveType||'—'};
+    // 综合适配判断
+    var fit=apx&&apx.linear43Fit;
+    var isFit=fit&&fit.isFit;
+    var score=fit&&fit.score;
+    var reason=fit&&fit.reason;
+    var h='';
+    // 线性43标准对照卡
+    h+='<div class="card" style="background:var(--bg-primary);margin-bottom:16px"><div class="card-body"><h4 style="margin:0 0 12px 0">🎯 线性43 标准对照</h4>';
+    h+='<div class="info-grid" style="grid-template-columns:repeat(3,1fr)"><div class="info-item"><span class="info-label">标准视线灵敏度</span><span class="info-value">'+std.lookSens+'</span></div>';
+    h+='<div class="info-item"><span class="info-label">标准ADS灵敏度</span><span class="info-value">'+std.adsSens+'</span></div>';
+    h+='<div class="info-item"><span class="info-label">标准响应曲线</span><span class="info-value">'+std.curve+'</span></div></div></div></div>';
+    // 测试者参数 + 适配结果
+    h+='<div class="card" style="background:var(--bg-primary);margin-bottom:16px"><div class="card-body"><h4 style="margin:0 0 12px 0">📊 你的参数</h4>';
+    h+='<div class="info-grid" style="grid-template-columns:repeat(3,1fr)"><div class="info-item"><span class="info-label">当前视线灵敏度</span><span class="info-value">'+cur.lookSens+'</span></div>';
+    h+='<div class="info-item"><span class="info-label">当前ADS灵敏度</span><span class="info-value">'+cur.adsSens+'</span></div>';
+    h+='<div class="info-item"><span class="info-label">当前响应曲线</span><span class="info-value">'+cur.curve+'</span></div></div>';
+    // 适配评分
+    if(score!==null){
+      var pct=Math.round(score*100);
+      var color=pct>=70?'var(--success)':(pct>=40?'#d29922':'var(--danger)');
+      h+='<div style="margin-top:16px;padding:12px;background:rgba(0,0,0,0.2);border-radius:8px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600">线性43 适配度</span><span style="font-size:1.4rem;font-weight:700;color:'+color+'">'+pct+'%</span></div>';
+      h+='<div style="margin-top:8px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:4px;transition:width 0.5s"></div></div></div>';
+      // 结论
+      if(isFit!==null){
+        var icon=isFit?'✅':'⚠️';
+        var label=isFit?'适合线性43':'建议使用ACL';
+        var bg=isFit?'rgba(63,185,80,0.15)':'rgba(210,153,34,0.15)';
+        var bd=isFit?'1px solid rgba(63,185,80,0.3)':'1px solid rgba(210,153,34,0.3)';
+        h+='<div style="margin-top:12px;padding:12px;background:'+bg+';border:'+bd+';border-radius:8px;text-align:center;font-size:1.1rem;font-weight:600">'+icon+' '+label+'</div>';
+        if(reason) h+='<p style="margin-top:8px;font-size:0.85rem;color:var(--text-muted)">'+reason+'</p>';
+      }
+    }
+    h+='</div></div>';
+    // 如果适配度低，显示ACL参数
+    if(isFit===false){
+      var acl=apx&&apx.aclParams;
+      var aclCard=document.getElementById('apex-acl-card');
+      var aclContent=document.getElementById('apex-acl-content');
+      if(aclCard) aclCard.style.display='';
+      if(aclContent&&acl){
+        var ah='<h4 style="margin:0 0 12px 0">🎯 Hipfire (腰射)</h4><div class="info-grid" style="grid-template-columns:repeat(2,1fr)">';
+        ah+='<div class="info-item"><span class="info-label">左右移动速度 (0-250)</span><span class="info-value">'+(acl.yawSpeed||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">上下移动速度 (0-250)</span><span class="info-value">'+(acl.pitchSpeed||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">转向额外左右移动 (0-250)</span><span class="info-value">'+(acl.yawExtra||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">转向额外上下移动 (0-250)</span><span class="info-value">'+(acl.pitchExtra||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">转向启动时间 (百分比)</span><span class="info-value">'+(acl.rampUpTime||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">转向启动延迟 (百分比)</span><span class="info-value">'+(acl.rampUpDelay||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">死角 (百分比)</span><span class="info-value">'+(acl.rightDeadzone||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">外部阈值 (百分比)</span><span class="info-value">'+(acl.outerThreshold||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">响应曲线 (1-30，越大越锁但是也越慢)</span><span class="info-value">'+(acl.responseCurve||'—')+'</span></div></div>';
+        ah+='<h4 style="margin:16px 0 12px 0">🔭 ADS (开镜)</h4><div class="info-grid" style="grid-template-columns:repeat(2,1fr)">';
+        ah+='<div class="info-item"><span class="info-label">ADS左右移动速度 (0-250)</span><span class="info-value">'+(acl.adsYawSpeed||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">ADS上下移动速度 (0-250)</span><span class="info-value">'+(acl.adsPitchSpeed||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">ADS转向额外左右 (0-250)</span><span class="info-value">'+(acl.adsYawExtra||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">ADS转向额外上下 (0-250)</span><span class="info-value">'+(acl.adsPitchExtra||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">ADS转向启动时间 (百分比)</span><span class="info-value">'+(acl.adsRampUpTime||'—')+'</span></div>';
+        ah+='<div class="info-item"><span class="info-label">ADS转向启动延迟 (百分比)</span><span class="info-value">'+(acl.adsRampUpDelay||'—')+'</span></div></div>';
+        ah+='<div style="margin-top:16px;padding:12px;background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);border-radius:8px"><p style="margin:0;font-size:0.9rem">💡 <strong>提示：</strong>以上ACL参数基于你的PSA测试数据动态计算，请在Apex设置 → 控制器 → 高级视角控制(ACL)中按以上数值设置，之后可再次测试验证。</p></div>';
+        aclContent.innerHTML=ah;
+      }else if(aclContent){
+        aclContent.innerHTML='<p style="color:var(--text-muted)">ACL参数加载中...</p>';
+      }
+    }else{
+      var aclCard2=document.getElementById('apex-acl-card');
+      if(aclCard2) aclCard2.style.display='none';
+    }
+    ac.innerHTML=h;
+  }
   renderScores(model) {
     const s=model.scores;
     this._set('sc-flick',s.flickAccuracy!==null?(s.flickAccuracy*100).toFixed(1)+'%':'—');

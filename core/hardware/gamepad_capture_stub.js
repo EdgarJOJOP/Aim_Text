@@ -18,6 +18,10 @@ class GamepadCapture {
     this._onConnect = null;
     this._onDisconnect = null;
 
+    // 基于 gamepad.timestamp 的真实轮询率计算
+    this._lastGpTimestamp = null;
+    this.gpTimestampDiffs = [];
+
     this._boundConnect = this._handleConnect.bind(this);
     this._boundDisconnect = this._handleDisconnect.bind(this);
     window.addEventListener('gamepadconnected', this._boundConnect);
@@ -54,6 +58,19 @@ class GamepadCapture {
     if (!gp) { this.connected = false; return null; }
     this.connected = true;
     this.id = gp.id;
+
+    // ★ 基于 gamepad.timestamp 的真实轮询率采集
+    // gamepad.timestamp 由硬件状态更新时驱动，不受 requestAnimationFrame 影响
+    if (gp.timestamp && gp.timestamp !== this._lastGpTimestamp) {
+      if (this._lastGpTimestamp !== null) {
+        var diff = gp.timestamp - this._lastGpTimestamp;
+        if (diff > 0 && diff < 200) { // 过滤异常值：200ms ~= 5Hz 下限
+          this.gpTimestampDiffs.push(diff);
+          if (this.gpTimestampDiffs.length > 500) this.gpTimestampDiffs.shift();
+        }
+      }
+      this._lastGpTimestamp = gp.timestamp;
+    }
 
     this.prevAxes = this.axes.slice();
     this.prevButtons = {};
@@ -113,6 +130,16 @@ class GamepadCapture {
   }
 
   getPollingRate() {
+    // ★ 优先使用基于 gamepad.timestamp 的硬件轮询率（真实值）
+    if (this.gpTimestampDiffs.length >= 5) {
+      var d = this.gpTimestampDiffs.slice().sort(function(a, b) { return a - b; });
+      var st = Math.floor(d.length * 0.1);
+      var en = Math.ceil(d.length * 0.9);
+      var mid = d.slice(st, en);
+      var avg = mid.reduce(function(a, b) { return a + b; }, 0) / mid.length;
+      return avg > 0 ? Math.round(1000 / avg) : null;
+    }
+    // 回退：使用 performance.now() 事件时间戳方法
     if (this.eventTimestamps.length < 5) return null;
     var t = this.eventTimestamps;
     var d = [];
